@@ -1,0 +1,26 @@
+# PC-1500, 16K RAM expansion at 0x0000. NEW&200 reserves memory below &200
+# so the loaded binary at 0x00C5 doesn't get clobbered by BASIC's own
+# program area; CALL&C5 starts it (see samples/memtest.asm's &00C5 variant).
+model: PC-1500
+firmware: ../roms/PC-1500_A04.ROM
+
+memory-expansion:
+  - address: 0x0000
+    size: 16k
+
+pre-load-keys:
+  - key: cl
+  - type: NEW&200
+  - key: mode
+
+program:
+  path: memtest.bin
+  format: binary
+  address: 0x00C5
+
+post-load-keys:
+  - type: X=2
+  - type: CALL&C5,X
+  - type: X
+  - wait: 5
+  - check: 0

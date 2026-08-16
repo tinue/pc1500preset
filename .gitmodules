@@ -1,0 +1,4 @@
+[submodule "vendor/pc1500emu"]
+	path = vendor/pc1500emu
+	url = git@github.com:tinue/pc1500emu.git
+	branch = master
