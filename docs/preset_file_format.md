@@ -41,6 +41,7 @@ firmware: ../roms/PC-1500_A04.ROM
 memory-expansion:
   - address: 0x0000
     size: 16k
+  # or, instead of 'size': module: ce163
 
 rom-modules:
   - slot: 1
@@ -65,11 +66,16 @@ program:
   file) when omitted. Passed to the emulator as its positional ROM argument
   on launch -- see README's "How a preset gets applied" section.
 - **`memory-expansion`** (optional): a list, up to one entry per window,
-  each `address`/`size` -- `address` is `0x0000` or `0x4800` (the
-  emulator's two extension-RAM windows) and `size` is a byte count,
-  optionally suffixed `k`/`K` for KiB (`16k` = 16384). Applied via the FIFO
-  `setextram` command before `reset`, since the ROM only detects installed
-  extension RAM at reset/cold-start.
+  each `address` plus either `size` or `module` -- `address` is `0x0000`
+  or `0x4800` (the emulator's two extension-RAM windows). `size` is a byte
+  count, optionally suffixed `k`/`K` for KiB (`16k` = 16384), and applies
+  via the FIFO `setextram` command. `module` is only valid at `0x0000`,
+  and only accepts `ce163` -- the CE-163 memory module (128K of RAM,
+  banked into the `0000H`-`3FFFH` window; see `vendor/pc1500emu/README.md`
+  for how bank selection works), applied via the FIFO `setce163 1`
+  command instead. Both command families run before `reset`, since the
+  ROM only detects installed extension RAM/CE-163 at reset/cold-start.
+  `size` and `module` can't both be given in the same entry.
 - **`rom-modules`** (optional): a list of CE-150/153/158-style plug-in ROM
   modules at `0x8000`-`0xBFFF`, each with `slot` (`1`-`4` or `auto`, for
   slot 1), `address` (hex load address), `require-pv`/`use-pu-bank`
@@ -212,10 +218,12 @@ it's only tallied into the exit code.
 
 If the script has no `check` steps, the emulator process is left running
 after `pc1500preset` exits, for interactive use -- same as before `check`
-existed. If it has at least one `check` step, that's a test run rather
-than a demo: `pc1500preset` terminates the emulator (SIGTERM, falling back
-to SIGKILL after a short grace period) once the whole script has finished,
-rather than leaving a window open indefinitely.
+existed. Automation mode (see step 3 below) is turned back off first, so
+the real keyboard works immediately once control is handed back. If it has
+at least one `check` step, that's a test run rather than a demo:
+`pc1500preset` terminates the emulator (SIGTERM, falling back to SIGKILL
+after a short grace period) once the whole script has finished, rather
+than leaving a window open indefinitely.
 
 ## Load pipeline (fixed order, always a cold boot)
 
@@ -226,7 +234,8 @@ rather than leaving a window open indefinitely.
    and `--no-state` (so it never resumes a `--conf`-configured session).
 3. Wait for its FIFO command interface to come up, then send
    `automation on`.
-4. Apply `memory-expansion` window sizes via `setextram`.
+4. Apply `memory-expansion` window sizes via `setextram`, or enable the
+   CE-163 module via `setce163` for a `module: ce163` entry.
 5. Load `rom-modules` attachments into their slots via `loadrommodule`.
 6. Send `reset`.
 7. If either script section is non-empty, wait out the ROM's own power-on

@@ -353,6 +353,9 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
   if (preset.extRam4800Bytes) {
     sendCommand("setextram 4800 " + std::to_string(*preset.extRam4800Bytes));
   }
+  if (preset.ce163Enabled) {
+    sendCommand("setce163 1");
+  }
 
   for (const auto& m : preset.romModules) {
     std::string cmd = std::string(kSlotCommands[m.slot]) + " " + hex16(m.base) + " " +
@@ -510,6 +513,11 @@ int main(int argc, char** argv) {
     std::printf("pc1500preset: %d/%d checks passed.\n", result.checksTotal - result.checksFailed,
                 result.checksTotal);
   } else {
+    // Left running for interactive use -- automation mode was only ever
+    // needed to keep a stray real keypress from corrupting the scripted
+    // load above (see README's automation-mode note), so turn it back off
+    // now that the script is done and hand the keyboard back to the user.
+    sendCommand("automation off");
     std::printf("pc1500preset: preset applied, pc1500emu (pid %d) left running.\n",
                 static_cast<int>(childPid));
   }

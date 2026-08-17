@@ -59,6 +59,11 @@ struct PresetFile {
 
   std::optional<size_t> extRam0000Bytes;
   std::optional<size_t> extRam4800Bytes;
+  // Set by a memory-expansion entry with `module: ce163` instead of `size`
+  // (address must be 0x0000) -- mutually exclusive with extRam0000Bytes at
+  // the parser level, mirroring Bus::setCe163Enabled's own mutual exclusion
+  // on the emulator side.
+  bool ce163Enabled = false;
 
   std::vector<RomModuleAttachment> romModules;
 

@@ -124,16 +124,31 @@ bool parsePresetFile(const std::string& path, PresetFile* out, std::string* erro
         }
         YAML::Node addrNode = item["address"];
         YAML::Node sizeNode = item["size"];
-        if (!addrNode || !sizeNode) {
-          return failAt(item, "memory-expansion entry needs 'address' and 'size'");
+        YAML::Node moduleNode = item["module"];
+        if (!addrNode || (!sizeNode && !moduleNode)) {
+          return failAt(item, "memory-expansion entry needs 'address' and either 'size' or 'module'");
+        }
+        if (sizeNode && moduleNode) {
+          return failAt(item, "memory-expansion entry cannot have both 'size' and 'module'");
         }
         uint16_t window = 0;
-        size_t bytes = 0;
         std::string addrStr = addrNode.as<std::string>();
-        std::string sizeStr = sizeNode.as<std::string>();
         if (!parseHex16(addrStr, &window)) {
           return failAt(addrNode, "invalid memory-expansion address '" + addrStr + "'");
         }
+        if (moduleNode) {
+          std::string moduleStr = moduleNode.as<std::string>();
+          if (moduleStr != "ce163") {
+            return failAt(moduleNode, "unrecognized memory-expansion module '" + moduleStr + "'");
+          }
+          if (window != 0x0000) {
+            return failAt(addrNode, "'module: ce163' requires address 0x0000");
+          }
+          out->ce163Enabled = true;
+          continue;
+        }
+        size_t bytes = 0;
+        std::string sizeStr = sizeNode.as<std::string>();
         if (!parseSize(sizeStr, &bytes)) {
           return failAt(sizeNode, "invalid memory-expansion size '" + sizeStr + "'");
         }

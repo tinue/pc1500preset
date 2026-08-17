@@ -1,0 +1,24 @@
+# PC-1500 with the CE-163 memory module (8 banks/128K -- see
+# vendor/pc1500emu's own README for how bank selection works) enabled,
+# loading samples/CE1638_BANKSWRM.BAS and running it. No `check` -- this is
+# a demo preset, not a test, so the emulator window is left open afterward
+# for interactive use.
+model: PC-1500
+firmware: ../roms/PC-1500_A04.ROM
+
+memory-expansion:
+  - address: 0x0000
+    module: ce163
+
+pre-load-keys:
+  - key: cl
+  - type: NEW0
+
+program:
+  path: CE1638_BANKSWRM.BAS
+  format: basic-text
+
+post-load-keys:
+  - wait: 1
+  - key: mode
+  - type: RUN
