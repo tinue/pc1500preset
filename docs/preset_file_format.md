@@ -8,7 +8,7 @@ around loading one program. Apply one with:
 ./build/src/pc1500preset path/to/file.pc1500
 ```
 
-This launches an unmodified `vendor/pc1500emu` binary and always cold-boots
+This launches an unmodified `../pc1500emu` binary and always cold-boots
 it from the preset's own firmware/hardware sections. See this project's own
 top-level `README.md` for how `pc1500preset` locates the emulator binary,
 and why the emulator itself is never modified to support this format.
@@ -42,6 +42,13 @@ memory-expansion:
   - address: 0x0000
     size: 16k
   # or, instead of 'size': module: ce163
+  # or, a parametrized generalization of ce163:
+  #   module: ce168n
+  #   banks: 4
+  #   first-read-only-bank: 2
+  #   bank-content:
+  #     - bank: 2
+  #       path: ../roms/some_flash_image.bin
 
 rom-modules:
   - slot: 1
@@ -70,16 +77,41 @@ program:
   or `0x4800` (the emulator's two extension-RAM windows). `size` is a byte
   count, optionally suffixed `k`/`K` for KiB (`16k` = 16384), and applies
   via the FIFO `setextram` command. `module` is only valid at `0x0000`,
-  and only accepts `ce163` -- the CE-163 memory module (128K of RAM,
-  banked into the `0000H`-`3FFFH` window; see `vendor/pc1500emu/README.md`
-  for how bank selection works), applied via the FIFO `setce163 1`
-  command instead. Both command families run before `reset`, since the
-  ROM only detects installed extension RAM/CE-163 at reset/cold-start.
-  `size` and `module` can't both be given in the same entry.
+  and accepts `ce163` or `ce168n`:
+  - `ce163` -- the CE-163 memory module (128K of RAM, banked into the
+    `0000H`-`3FFFH` window; see `../pc1500emu/README.md` for how bank
+    selection works), applied via the FIFO `setce163 1` command.
+  - `ce168n` -- a parametrized generalization of CE-163: same
+    `0000H`-`3FFFH` window and fixed 16K bank size, but with the bank
+    count and a first-read-only-bank boundary as parameters, applied via
+    the FIFO `setce168n <banks> <first-read-only-bank>` command. Requires
+    two additional fields on the entry:
+    - **`banks`** (required): total number of 16K banks, `>= 1`.
+    - **`first-read-only-bank`** (required): the index of the first bank
+      that simulates flash (normal writes discarded, but `bank-content`
+      can still seed it). A value `>= banks` means "every bank is
+      writable".
+    - **`bank-content`** (optional): a list of `{bank, path}` entries
+      preloading specific banks' contents (any bank, not just read-only
+      ones -- a writable bank preloaded with initial RAM content is
+      reasonable too). Each `path` is resolved relative to the preset
+      file's own directory, same convention as `firmware`/
+      `rom-modules[].path`/`program.path`. Each `bank` must be `< banks`.
+      Only valid alongside `module: ce168n` -- rejected under `module:
+      ce163` or a plain `size` entry.
+
+  Both `ce163` and `ce168n` command families run before `reset`, since the
+  ROM only detects installed extension RAM/CE-163/CE-168N at
+  reset/cold-start; `bank-content` entries are applied after `reset`
+  instead (see "Load pipeline" below), since bank-select addresses only
+  mean anything once the module is enabled and sized.
+  `size` and `module` can't both be given in the same entry, and
+  `module: ce163` and `module: ce168n` are mutually exclusive with each
+  other and with a `size` entry at either window.
 - **`rom-modules`** (optional): a list of CE-150/153/158-style plug-in ROM
   modules at `0x8000`-`0xBFFF`, each with `slot` (`1`-`4` or `auto`, for
   slot 1), `address` (hex load address), `require-pv`/`use-pu-bank`
-  (booleans, default `false` -- see `vendor/pc1500emu`'s own
+  (booleans, default `false` -- see `../pc1500emu`'s own
   `Bus::RomModule` comment for what they mean), and `path`. Printer
   (CE-150) and serial (CE-158) peripherals aren't emulated, so they're out
   of scope here too. Applied via the FIFO `loadrommodule` family of
@@ -230,23 +262,27 @@ than leaving a window open indefinitely.
 1. Parse and validate the whole file. Any error (bad hex, missing required
    field, unrecognized field) fails before the emulator is even launched --
    a preset is applied all-or-nothing.
-2. Launch `vendor/pc1500emu` with `firmware` as its positional ROM argument
+2. Launch `../pc1500emu` with `firmware` as its positional ROM argument
    and `--no-state` (so it never resumes a `--conf`-configured session).
 3. Wait for its FIFO command interface to come up, then send
    `automation on`.
 4. Apply `memory-expansion` window sizes via `setextram`, or enable the
-   CE-163 module via `setce163` for a `module: ce163` entry.
+   CE-163/CE-168N module via `setce163`/`setce168n` for a `module: ce163`/
+   `module: ce168n` entry.
 5. Load `rom-modules` attachments into their slots via `loadrommodule`.
 6. Send `reset`.
-7. If either script section is non-empty, wait out the ROM's own power-on
-   RAM-check/boot sequence before sending any keystrokes -- confirmed
-   empirically (by an earlier in-process prototype of this format) that
-   keys sent immediately after reset are missed entirely, since the ROM
-   doesn't start polling the keyboard until it settles into its post-boot
-   idle loop.
-8. Replay `pre-load-keys`.
-9. Load `program` at its `address` (per `program.format`).
-10. Replay `post-load-keys`.
+7. If either script section or `bank-content` is non-empty, wait out the
+   ROM's own power-on RAM-check/boot sequence before sending any keystrokes
+   or bank-select writes -- confirmed empirically (by an earlier
+   in-process prototype of this format) that keys sent immediately after
+   reset are missed entirely, since the ROM doesn't start polling the
+   keyboard until it settles into its post-boot idle loop.
+8. Apply `memory-expansion`'s `ce168n` `bank-content` entries: for each,
+   select the target bank (a write to `5800H + bank`, same trigger
+   mechanism CE-163 itself uses) and `loadbinary` the file into it.
+9. Replay `pre-load-keys`.
+10. Load `program` at its `address` (per `program.format`).
+11. Replay `post-load-keys`.
 
 There is no delta/attach-to-a-running-instance mode -- a preset always
 starts from a cold boot. The emulator process is left running afterward for
@@ -307,6 +343,29 @@ Run it with:
 ```
 ./build/src/pc1500preset samples/memtest.pc1500
 ```
+
+`samples/ce163_bankswrm_bin.pc1500` shows a `module: ce168n` memory
+expansion with `banks: 8` and `first-read-only-bank: 8` -- the same 128K
+capacity as the CE-163 module it used to enable, but with every bank left
+writable (`first-read-only-bank >= banks`). A `bank-content` entry
+preloading a read-only bank looks like this instead:
+
+```yaml
+memory-expansion:
+  - address: 0x0000
+    module: ce168n
+    banks: 4
+    first-read-only-bank: 2
+    bank-content:
+      - bank: 2
+        path: ../roms/some_flash_image.bin
+```
+
+Banks below `first-read-only-bank` (here, 0 and 1) behave like ordinary
+CE-163 RAM banks -- writable, blank at boot unless also named in
+`bank-content`. Banks at/above it (here, 2 and 3) simulate flash: normal
+writes are discarded, but `bank-content` can still seed them, which is how
+a preset gets flash content into the machine in the first place.
 
 `samples/iterator.pc1500` shows the `program.text` inline form (no
 companion `.bas` file, no `check` -- it's a demo, not a test):

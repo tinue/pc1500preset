@@ -1,6 +1,8 @@
-# PC-1500 with the CE-163 memory module (8 banks/128K -- see
-# vendor/pc1500emu's own README for how bank selection works) enabled,
-# loading samples/CE1638_BANKSWRM_FIXED.bin (assembled from
+# PC-1500 with the CE-168N memory module (a parametrized generalization of
+# CE-163 -- see ../pc1500emu's own README for how bank selection works)
+# enabled with 8 banks/128K, all writable (first-read-only-bank >= banks),
+# same capacity as the CE-163 module this preset used to enable, loading
+# samples/CE1638_BANKSWRM_FIXED.bin (assembled from
 # pc1500/CE-1638/CE1638_BANKSWRM_LOADER.asm, the "RM" loader variant with
 # both known firmware defects fixed -- see CE1638_BANKSWRM_notes.md and
 # pc1500/CE-1638/README.md) directly at 0x4100 via loadbinary, rather than
@@ -10,7 +12,9 @@ firmware: ../roms/PC-1500_A04.ROM
 
 memory-expansion:
   - address: 0x0000
-    module: ce163
+    module: ce168n
+    banks: 8
+    first-read-only-bank: 8
 
 pre-load-keys:
   - key: cl
@@ -24,8 +28,18 @@ program:
 post-load-keys:
   - key: mode
   - type: CALL&4100
-  - type: PEEK&D4
   - key: mode
-  - type: NEW&104
-  - type: 10 PRINT "7"
+  - type: '10 PRINT "Bank: 7"'
   - key: mode
+  - type: X=0
+  - type: CALL&D5,X
+  - key: mode
+  - type: '10 PRINT "Bank: 0"'
+  - key: mode
+  - type: X=7
+  - type: CALL&D5,X
+  - type: RUN
+  - wait: 1
+  - type: X=0
+  - type: CALL&D5,X
+  - type: RUN

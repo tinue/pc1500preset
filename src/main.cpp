@@ -2,10 +2,10 @@
 // Version 2.0 -- see LICENSE.
 //
 // pc1500preset: applies a .pc1500 file (docs/preset_file_format.md)
-// to a completely unmodified pc1500emu binary (vendored as a git submodule
-// under vendor/pc1500emu -- see this project's own top-level README),
+// to a completely unmodified pc1500emu binary (an independent sibling
+// checkout at ../pc1500emu -- see this project's own top-level README),
 // driving it entirely through its own existing FIFO/pipe scripting
-// interface (vendor/pc1500emu/README.md's "Scriptable command interface"
+// interface (../pc1500emu/README.md's "Scriptable command interface"
 // section) rather than linking against or patching the emulator's own
 // source. See preset_file.h's top comment for the rationale.
 //
@@ -50,7 +50,7 @@ constexpr const char* kResponsePath = "/tmp/pc1500emu.response";
 #endif
 
 // Real-time delay after a `key` script line (which only queues into the
-// live emulator's frame-driven tap/idle sequence -- see vendor/pc1500emu's
+// live emulator's frame-driven tap/idle sequence -- see ../pc1500emu's
 // own main.cpp, symbolActionQueue -- rather than executing synchronously)
 // and, for uniformity, after every script line generally. A
 // prototype-grade stand-in for actually watching the display to detect
@@ -267,7 +267,7 @@ void terminateEmulator(pid_t childPid) {
 }
 
 // Polls `status` until the machine's own BUSY indicator (ind1(764E) bit 0,
-// see vendor/pc1500emu's own formatRegisters()) clears, i.e. it has settled
+// see ../pc1500emu's own formatRegisters()) clears, i.e. it has settled
 // back into its idle/READY prompt. `typeline` steps the CPU directly
 // rather than queuing into the normal keyboard path (see runScriptLine's
 // kType case), so it isn't safe to send while a program -- e.g. a
@@ -356,6 +356,10 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
   if (preset.ce163Enabled) {
     sendCommand("setce163 1");
   }
+  if (preset.ce168nBanks) {
+    sendCommand("setce168n " + std::to_string(*preset.ce168nBanks) + " " +
+                std::to_string(preset.ce168nFirstRoBank));
+  }
 
   for (const auto& m : preset.romModules) {
     std::string cmd = std::string(kSlotCommands[m.slot]) + " " + hex16(m.base) + " " +
@@ -366,8 +370,15 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
 
   sendCommand("reset");
 
-  if (!preset.preLoadKeys.empty() || !preset.postLoadKeys.empty()) {
+  if (!preset.preLoadKeys.empty() || !preset.postLoadKeys.empty() ||
+      !preset.ce168nBankContent.empty()) {
     std::this_thread::sleep_for(kBootSettle);
+  }
+
+  for (const auto& c : preset.ce168nBankContent) {
+    sendCommand("poke " + hex16(0x5800 + c.bank) + " 00");
+    std::string response = sendCommandForResponse("loadbinary 0000 " + c.path);
+    requireOk(response, "ce168n bank-content '" + c.path + "'");
   }
 
   runScript(preset.preLoadKeys, result);
@@ -429,8 +440,8 @@ void printUsage(const char* argv0) {
       "\n"
       "Locating the emulator binary, when --emulator isn't given:\n"
       "  1. $PC1500EMU_PATH, if set.\n"
-      "  2. vendor/pc1500emu/build/src/host/pc1500emu, relative to the\n"
-      "     current directory (this project's own vendored submodule build).\n"
+      "  2. ../pc1500emu/build/src/host/pc1500emu, relative to the\n"
+      "     current directory (the sibling pc1500emu checkout's own build).\n"
       "  3. 'pc1500emu' next to this tool's own executable.\n"
       "  4. 'pc1500emu' on PATH.\n",
       argv0);
@@ -443,9 +454,9 @@ std::string defaultEmulatorPath(const char* argv0) {
     if (*envPath) return envPath;
   }
 
-  std::filesystem::path vendored =
-      std::filesystem::path("vendor/pc1500emu/build/src/host/pc1500emu");
-  if (std::filesystem::exists(vendored)) return vendored.string();
+  std::filesystem::path sibling =
+      std::filesystem::path("../pc1500emu/build/src/host/pc1500emu");
+  if (std::filesystem::exists(sibling)) return sibling.string();
 
   std::filesystem::path self(argv0);
   std::error_code ec;

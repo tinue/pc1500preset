@@ -1,14 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(pc1500preset VERSION 0.1.0 LANGUAGES CXX)
 
-# This project builds only its own preset-applier tool (src/). The vendored
-# emulator under vendor/pc1500emu is a separate, independent project (a git
-# submodule pointing at an unmodified checkout of pc1500emu) with its own
-# CMake build -- it is never added as a subdirectory here, and never
-# patched. Build it on its own, e.g.:
+# This project builds only its own preset-applier tool (src/). The emulator
+# is a separate, independent project checked out as a sibling directory at
+# ../pc1500emu (never vendored, never patched) with its own CMake build --
+# it is never added as a subdirectory here. Build it on its own, e.g.:
 #
-#   cmake -B vendor/pc1500emu/build -S vendor/pc1500emu
-#   cmake --build vendor/pc1500emu/build
+#   cmake -B ../pc1500emu/build -S ../pc1500emu
+#   cmake --build ../pc1500emu/build
 #
 # See scripts/build_all.sh for a convenience wrapper that builds both.
 

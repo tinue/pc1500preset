@@ -1,11 +1,11 @@
 ---
 name: tasm-preprocessor
-description: Use when asked to add real preprocessor/macro-expander support (#include/#define/#ifdef, MACRO/ENDM, .EXPORT) to vendor/pc1500emu's TASM-to-sdas converter (pc1500disasm --mode convert), or to scope/hand off that work. This touches vendor/pc1500emu source, not this project's own -- see the repo-boundary note below before editing anything.
+description: Use when asked to add real preprocessor/macro-expander support (#include/#define/#ifdef, MACRO/ENDM, .EXPORT) to ../pc1500emu's TASM-to-sdas converter (pc1500disasm --mode convert), or to scope/hand off that work. This touches ../pc1500emu source, not this project's own -- see the repo-boundary note below before editing anything.
 ---
 
 # TASM → sdas preprocessor/macro-expander enhancement
 
-`pc1500disasm --mode convert` (in `vendor/pc1500emu`) rewrites hand-written
+`pc1500disasm --mode convert` (in `../pc1500emu`) rewrites hand-written
 TASM (`tasm5801.tab`) assembly to this toolchain's `sdas` dialect. It's
 currently a **syntax-level, single-pass, line-based rewrite** — no
 preprocessing or macro expansion. Three constructs are explicitly out of
@@ -16,26 +16,26 @@ Adding real support for these is the scope of this skill.
 
 ## Repo boundary — read before touching anything
 
-This code lives at `vendor/pc1500emu/src/disasm/tasm_convert.{h,cpp}`,
-inside the git submodule. **This project's own `CLAUDE.md` states
-`vendor/pc1500emu/` is never modified from work done in this repo** — that
+This code lives at `../pc1500emu/src/disasm/tasm_convert.{h,cpp}`, in an
+independent sibling checkout. **This project's own `CLAUDE.md` states
+`../pc1500emu/` is never modified from work done in this repo** — that
 rule exists because `pc1500preset` depends on driving an *unmodified*
-upstream `pc1500emu` binary through its FIFO interface, and the submodule
-pin is meant to move only via deliberate upstream bumps.
+upstream `pc1500emu` binary through its FIFO interface, and that sibling
+checkout is meant to advance only via deliberate work done directly in it.
 
 Practically: if you were invoked from within `pc1500preset` and asked
 to do this work, either (a) confirm with the user that they specifically
-want to edit inside the submodule checkout (which is a real, independently
-committable git repo — `cd vendor/pc1500emu && git status` to check its
+want to edit inside the sibling checkout (a real, independently
+committable git repo — `cd ../pc1500emu && git status` to check its
 own branch/history), or (b) treat this skill as scoping/reference material
 to hand off to a separate session working directly in a `pc1500emu`
-checkout. Don't casually modify submodule files as a side effect of a task
-scoped to `pc1500preset` itself.
+checkout. Don't casually modify sibling-checkout files as a side effect of
+a task scoped to `pc1500preset` itself.
 
-The submodule's own `.claude/skills/pc1500-dev/SKILL.md` is the broader
-skill for all `pc1500emu` work (CPU internals, hardware quirks, real-
-hardware testing) and is auto-discovered by Claude Code whenever a task
-touches files under `vendor/pc1500emu/` — this skill is a narrower
+That sibling checkout's own `.claude/skills/pc1500-dev/SKILL.md` is the
+broader skill for all `pc1500emu` work (CPU internals, hardware quirks,
+real-hardware testing) and is auto-discovered by Claude Code whenever a
+task touches files under `../pc1500emu/` — this skill is a narrower
 companion specific to the converter's preprocessor gap.
 
 ## Current architecture (`tasm_convert.cpp`, ~320 lines)
@@ -90,7 +90,7 @@ lines").
 
 ## Test corpus and validation approach
 
-`vendor/pc1500emu/tests/tasm_convert_test.cpp` is the existing test file —
+`../pc1500emu/tests/tasm_convert_test.cpp` is the existing test file —
 extend it rather than starting a new one. The converter's existing
 coverage was built against two real hand-written/ROM-disassembled TASM
 sources (see `tasm_convert.h`'s top comment): a small hand-written
@@ -111,6 +111,6 @@ Files that don't use any of these constructs must convert identically to
 before — the preprocessing phase should be a no-op pass-through when none
 of `#INCLUDE`/`#DEFINE`/`#IFDEF`/`MACRO`/`.EXPORT` appear in the source.
 Verify by re-running the existing `ctest` suite
-(`cd vendor/pc1500emu/build && ctest --output-on-failure`) after any
+(`cd ../pc1500emu/build && ctest --output-on-failure`) after any
 change — a regression here would silently break every source that doesn't
 even touch the new feature.

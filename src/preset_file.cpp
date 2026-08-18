@@ -138,14 +138,70 @@ bool parsePresetFile(const std::string& path, PresetFile* out, std::string* erro
         }
         if (moduleNode) {
           std::string moduleStr = moduleNode.as<std::string>();
-          if (moduleStr != "ce163") {
+          if (moduleStr != "ce163" && moduleStr != "ce168n") {
             return failAt(moduleNode, "unrecognized memory-expansion module '" + moduleStr + "'");
           }
           if (window != 0x0000) {
-            return failAt(addrNode, "'module: ce163' requires address 0x0000");
+            return failAt(addrNode, "'module: " + moduleStr + "' requires address 0x0000");
           }
-          out->ce163Enabled = true;
+          if (moduleStr == "ce163") {
+            if (item["bank-content"]) {
+              return failAt(item, "'bank-content' is only valid with 'module: ce168n'");
+            }
+            out->ce163Enabled = true;
+            continue;
+          }
+          YAML::Node banksNode = item["banks"];
+          YAML::Node firstRoBankNode = item["first-read-only-bank"];
+          if (!banksNode || !firstRoBankNode) {
+            return failAt(item, "'module: ce168n' requires 'banks' and 'first-read-only-bank'");
+          }
+          int banks = 0;
+          try {
+            banks = std::stoi(banksNode.as<std::string>());
+          } catch (...) {
+            return failAt(banksNode, "invalid 'banks' value");
+          }
+          if (banks < 1) return failAt(banksNode, "'banks' must be >= 1");
+          int firstRoBank = 0;
+          try {
+            firstRoBank = std::stoi(firstRoBankNode.as<std::string>());
+          } catch (...) {
+            return failAt(firstRoBankNode, "invalid 'first-read-only-bank' value");
+          }
+          if (firstRoBank < 0) {
+            return failAt(firstRoBankNode, "'first-read-only-bank' must be >= 0");
+          }
+          out->ce168nBanks = banks;
+          out->ce168nFirstRoBank = firstRoBank;
+          if (YAML::Node contentNode = item["bank-content"]) {
+            if (!contentNode.IsSequence()) {
+              return failAt(contentNode, "'bank-content' must be a list");
+            }
+            for (const YAML::Node& c : contentNode) {
+              if (!c.IsMap()) return failAt(c, "each bank-content entry must be a mapping");
+              YAML::Node bankNode = c["bank"];
+              YAML::Node pathNode = c["path"];
+              if (!bankNode || !pathNode) {
+                return failAt(c, "bank-content entry needs 'bank' and 'path'");
+              }
+              Ce168nBankContent bc;
+              try {
+                bc.bank = std::stoi(bankNode.as<std::string>());
+              } catch (...) {
+                return failAt(bankNode, "invalid 'bank' value");
+              }
+              if (bc.bank < 0 || bc.bank >= banks) {
+                return failAt(bankNode, "'bank' must be < banks (" + std::to_string(banks) + ")");
+              }
+              bc.path = resolveRelative(pathNode.as<std::string>(), baseDir);
+              out->ce168nBankContent.push_back(bc);
+            }
+          }
           continue;
+        }
+        if (item["bank-content"]) {
+          return failAt(item, "'bank-content' is only valid with 'module: ce168n'");
         }
         size_t bytes = 0;
         std::string sizeStr = sizeNode.as<std::string>();

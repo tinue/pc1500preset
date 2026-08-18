@@ -40,6 +40,11 @@ struct ScriptLine {
   double waitSeconds = 0;  // only meaningful for kWait
 };
 
+struct Ce168nBankContent {
+  int bank = 0;
+  std::string path;  // resolved relative to the preset file's own directory
+};
+
 struct RomModuleAttachment {
   int slot = 0;  // 0-3, matching the FIFO loadrommodule/2/3/4 commands
   uint16_t base = 0xA000;
@@ -64,6 +69,13 @@ struct PresetFile {
   // the parser level, mirroring Bus::setCe163Enabled's own mutual exclusion
   // on the emulator side.
   bool ce163Enabled = false;
+  // Set by a memory-expansion entry with `module: ce168n` instead of `size`
+  // (address must be 0x0000) -- mutually exclusive with extRam0000Bytes and
+  // ce163Enabled at the parser level, mirroring Bus::setCe168nEnabled's own
+  // mutual exclusion on the emulator side.
+  std::optional<int> ce168nBanks;
+  int ce168nFirstRoBank = 0;  // only meaningful if ce168nBanks is set
+  std::vector<Ce168nBankContent> ce168nBankContent;
 
   std::vector<RomModuleAttachment> romModules;
 

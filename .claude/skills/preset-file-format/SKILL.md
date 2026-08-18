@@ -125,7 +125,7 @@ is fixed). If you add a field that needs its own FIFO command:
   `requireOk()` (e.g. `loadrommodule`, `loadbinary`/`loadbasic`/
   `loadbasictext`, `typeline`) — use this whenever a bad path or bad
   argument could otherwise fail silently.
-- Check `vendor/pc1500emu/README.md`'s "Scriptable command interface"
+- Check `../pc1500emu/README.md`'s "Scriptable command interface"
   section for the exact command syntax and which commands are
   fire-and-forget vs. response-writing — **never invent a new FIFO
   command or change the emulator to add one**; if the field you're adding

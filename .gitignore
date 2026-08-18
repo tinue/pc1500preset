@@ -4,7 +4,3 @@
 .DS_Store
 state.bin
 pc1500emu.json
-
-# vendor/pc1500emu is a submodule -- its own build output and any of its
-# own gitignored files stay inside its own checkout, not tracked here.
-/vendor/pc1500emu/build/
