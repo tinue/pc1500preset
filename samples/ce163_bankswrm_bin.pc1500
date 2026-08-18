@@ -1,8 +1,10 @@
 # PC-1500 with the CE-163 memory module (8 banks/128K -- see
 # vendor/pc1500emu's own README for how bank selection works) enabled,
-# loading samples/CE1638_Firmware.bin (the assembled machine code from
-# samples/CE1638_BANKSWRM.BAS) directly at 0x4100 via loadbinary, rather
-# than typing the BASIC listing through the ROM's own line editor.
+# loading samples/CE1638_BANKSWRM_FIXED.bin (assembled from
+# pc1500/CE-1638/CE1638_BANKSWRM_LOADER.asm, the "RM" loader variant with
+# both known firmware defects fixed -- see CE1638_BANKSWRM_notes.md and
+# pc1500/CE-1638/README.md) directly at 0x4100 via loadbinary, rather than
+# typing a BASIC listing through the ROM's own line editor.
 model: PC-1500
 firmware: ../roms/PC-1500_A04.ROM
 
@@ -15,7 +17,7 @@ pre-load-keys:
   - type: NEW0
 
 program:
-  path: CE1638_Firmware.bin
+  path: CE1638_BANKSWRM_FIXED.bin
   format: binary
   address: 0x4100
 
