@@ -310,8 +310,57 @@ void runScriptLine(const ScriptLine& line, RunResult* result) {
       // `type` line wants (see docs/preset_file_format.md). Wait for the
       // machine to actually be idle first (see waitUntilReady()).
       waitUntilReady();
-      std::string response = sendCommandForResponse("typeline " + line.text);
-      requireOk(response, "'type " + line.text + "'");
+      if (line.text.find_first_of("abcdefghijklmnopqrstuvwxyz") == std::string::npos) {
+        std::string response = sendCommandForResponse("typeline " + line.text);
+        requireOk(response, "'type " + line.text + "'");
+      } else {
+        // The ROM's keyboard dispatch only knows physical keys, not case --
+        // there is one key per letter, and `typeline` (via the emulator's
+        // own charToTapActions) folds any lowercase input to that same
+        // uppercase key. Real (and interactive-emulator) lowercase input
+        // instead comes from a one-shot Shift-tap immediately before the
+        // letter -- the emulator's FIFO `key shift+<letter>` command already
+        // does exactly this (see its own handler in pc1500emu's main.cpp),
+        // so a line containing lowercase letters is split into runs: each
+        // non-lowercase run is sent whole via `typelinenoenter` (so it
+        // accumulates on the same input line without submitting), each
+        // lowercase letter is sent individually as `key shift+<letter>`.
+        //
+        // `key` commands queue into the emulator's own frame-driven action
+        // queue instead of executing synchronously (unlike
+        // `typelinenoenter`, which steps the CPU directly within the FIFO
+        // handler and blocks the emulator's main loop -- and with it, that
+        // queue's own draining -- until it's done). `kPostStatementSettle`
+        // after *every* `key shift+<letter>` push, not just once per run of
+        // several, gives the queue real time to actually drain before the
+        // next command runs -- confirmed empirically that skipping this
+        // between consecutive shifted letters (an earlier version of this
+        // code settled only once, after the last of a run) leaves later
+        // taps still queued when the next synchronous `typelinenoenter`
+        // fragment fires, corrupting/reordering the input (e.g. "Bank"
+        // typed as "Ban* 0"k" -- the still-queued 'k' tap leaking out after
+        // the following fragment's own keystrokes). Same reasoning as
+        // kKeyPress's own settle above, just needed after each letter here
+        // too rather than only between chunks.
+        std::string run;
+        auto flushRun = [&]() {
+          if (run.empty()) return;
+          std::string response = sendCommandForResponse("typelinenoenter " + run);
+          requireOk(response, "'type " + line.text + "'");
+          run.clear();
+        };
+        for (char c : line.text) {
+          if (c >= 'a' && c <= 'z') {
+            flushRun();
+            sendCommand("key shift+" + std::string(1, c));
+            std::this_thread::sleep_for(kPostStatementSettle);
+          } else {
+            run.push_back(c);
+          }
+        }
+        flushRun();
+        sendCommand("key ent");
+      }
       std::this_thread::sleep_for(kPostStatementSettle);
       break;
     }

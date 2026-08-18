@@ -177,6 +177,21 @@ Each step is one complete, executed-in-order statement, of four kinds:
   `key: shift+f1`) for a genuine PC-1500 Shift-tap first. Forwarded to the
   emulator's own FIFO `key` command verbatim, which parses this same
   vocabulary itself.
+  - **`key: sml` caveat**: unlike Shift (a one-shot modifier for the very
+    next key -- see `type`'s own lowercase handling below), SML is a
+    **persistent** lowercase-input toggle on real hardware: it stays in
+    effect across every key that follows, including subsequent script
+    steps and any `type` step's own per-letter Shift-taps, until another
+    `key: sml` toggles it back off. A `key: sml` step anywhere in a
+    script therefore inverts the case of everything typed after it for
+    the rest of the script (letters that would've been uppercase come out
+    lowercase, and -- since `type`'s lowercase handling adds its own
+    Shift-tap on top -- a lowercase letter in `<text>` comes out
+    uppercase again while SML is active). This is real PC-1500 keyboard
+    behavior, faithfully reproduced, not a `pc1500preset` bug -- **this
+    format makes no attempt to track or compensate for SML state**, so
+    avoid `key: sml` in a script that also uses lowercase `type` text, or
+    account for the inversion by hand if you do use both.
 - **`type: <text>`** -- types `<text>` through the ROM's own tokenizing
   line editor, **followed by an automatic Enter**. Implemented via the
   FIFO `typeline` command, which types and presses Enter synchronously
@@ -191,6 +206,20 @@ Each step is one complete, executed-in-order statement, of four kinds:
   normal keyboard path, so it must not be sent while a program (e.g. a
   minutes-long memory test triggered by an earlier `type: CALL...`) still
   has the CPU.
+  - **Lowercase letters in `<text>`**: the PC-1500 keyboard has one
+    physical key per letter, not separate upper/lowercase keys -- which
+    case it types is a ROM keyboard-dispatch mode, not a separate
+    keystroke. `typeline` alone (like typing on real hardware with no
+    modifier held) always types uppercase. A genuine lowercase letter in
+    `<text>` is produced the same way pressing the real Shift key before a
+    letter does: `pc1500preset` splits a `<text>` containing lowercase
+    letters into runs, sending each non-lowercase run whole via the FIFO
+    `typelinenoenter` command (so it accumulates on the same input line
+    without submitting) and each lowercase letter individually via `key
+    shift+<letter>` -- a one-shot Shift-tap, not the ROM's separate,
+    *persistent* SML lowercase-mode toggle (see the `sml` caveat right
+    below). The whole line is still submitted with one Enter at the end,
+    same as an all-uppercase `type` step.
 - **`wait: <seconds>`** -- an unconditional real-time delay (decimal
   seconds, e.g. `wait: 20` or `wait: 2.5`), independent of machine state.
   Since `type`/`check` already wait for readiness on their own, this is
