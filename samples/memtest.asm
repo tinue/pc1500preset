@@ -125,12 +125,13 @@ MEMTEST:                        ; ENTRY+7
             rtn
 
 COUNT_OK:
-; Save the low byte of the iteration count into UL.
-; UH holds the current test pattern; after pass 4 it is 0x00,
-; which lets CPA UH serve as the zero test for the iteration counter.
+; Save the iteration count into UL, biased down by one: LOP branches
+; back unless UL was already 0 *before* its decrement, so priming it
+; with (count-1) makes the OUTER loop below run exactly `count` times.
 ; Supported range: 1-255 (XH is not used for the count).
             lda     xl
             sta     ul
+            dec     ul
 
 ; Load Y with the end sentinel (0x4000 = one past last module byte 0x3FFF).
             ldi     yh,0x40
@@ -274,13 +275,9 @@ LOOP4:      lda     uh
             bcr     LOOP4
 NEXT4:
 ; All four passes completed without error.
-; Decrement the 8-bit iteration counter in UL and loop if > 0.
-; UH is 0x00 after pass 4 -- use it as the zero comparand for CPA,
-; because LDA alone does not set the Z flag on LH5801.
-            dec     ul                  ; ul = ul - 1
-            lda     ul                  ; a = new ul
-            cpa     uh                  ; compare with 0x00 (uh is 0x00 after pass 4)
-            bzr     OUTER               ; ul != 0 -> do another sweep
+; LOP decrements UL and branches back to OUTER unless UL was already 0
+; (see the priming comment at COUNT_OK above).
+            lop     ul,OUTER
 
 ; ============================================================
 ; All iterations completed without error.
