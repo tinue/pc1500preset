@@ -396,6 +396,12 @@ void runScript(const std::vector<ScriptLine>& lines, RunResult* result) {
 }
 
 void applyPreset(const PresetFile& preset, RunResult* result) {
+  // Must precede setextram: the FIFO's own setmachine handler notes that
+  // it changes how setextram's 0x4800 window is interpreted (0x4800-based
+  // on a PC-1500, 0x5800-based on a PC-1500A -- see pc1500emu's
+  // Bus::extRamExtBase()).
+  sendCommand("setmachine " + std::string(preset.model == "PC-1500A" ? "1500a" : "1500"));
+
   if (preset.extRam0000Bytes) {
     sendCommand("setextram 0000 " + std::to_string(*preset.extRam0000Bytes));
   }

@@ -63,11 +63,12 @@ program:
   address: 0x00C5
 ```
 
-- **`model`** (required): `PC-1500` or `PC-1500A`. The emulator does not
-  currently model any hardware difference between the two (only different
-  firmware dumps exist -- no separate built-in-RAM-size logic), so this is
-  stored purely for documentation/forward-compatibility and never changes
-  loader behavior.
+- **`model`** (required): `PC-1500` or `PC-1500A`. Applied via the FIFO
+  `setmachine` command (`1500`/`1500a`) before any `memory-expansion` setup
+  and the initial `reset` -- it must precede `setextram` since the base
+  unit selects where the 0x4800 extension-RAM window actually lives
+  (0x4800-based on a PC-1500, 0x5800-based on a PC-1500A; see pc1500emu's
+  `Bus::extRamExtBase()`).
 - **`firmware`** (optional): path to a 16KB system ROM dump, loaded at
   `0xC000`. Defaults to `roms/PC-1500_A04.ROM` (resolved next to the preset
   file) when omitted. Passed to the emulator as its positional ROM argument
