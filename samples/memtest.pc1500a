@@ -1,0 +1,28 @@
+# PC-1500A, 16K RAM expansion at 0x0000. memtest_1500a.bin is built with
+# ENTRY=0x7C01 (see samples/memtest_1500a.asm's "Build variants" section),
+# outside the module window, so it can't collide with a BASIC program and
+# the whole 16K module can be tested. NEW0 still clears the input buffer
+# and memory layout before loading. CALL&7C01 starts it.
+model: PC-1500A
+firmware: ../roms/PC-1500_A04.ROM
+
+memory-expansion:
+  - address: 0x0000
+    module: ce128k
+
+pre-load-keys:
+  - key: cl
+  - type: NEW0
+  - key: mode
+
+program:
+  path: memtest_1500a.bin
+  format: binary
+  address: 0x7C01
+
+post-load-keys:
+  - type: X=2
+  - type: CALL&7C01,X
+  - type: X
+  - wait: 5
+  - check: 0
