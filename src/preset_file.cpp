@@ -138,7 +138,8 @@ bool parsePresetFile(const std::string& path, PresetFile* out, std::string* erro
         }
         if (moduleNode) {
           std::string moduleStr = moduleNode.as<std::string>();
-          if (moduleStr != "ce163" && moduleStr != "ce168n" && moduleStr != "ce128k") {
+          if (moduleStr != "ce163" && moduleStr != "ce168n" && moduleStr != "ce128k" &&
+              moduleStr != "ce155") {
             return failAt(moduleNode, "unrecognized memory-expansion module '" + moduleStr + "'");
           }
           if (window != 0x0000) {
@@ -156,6 +157,13 @@ bool parsePresetFile(const std::string& path, PresetFile* out, std::string* erro
               return failAt(item, "'bank-content' is only valid with 'module: ce168n'");
             }
             out->ce128kEnabled = true;
+            continue;
+          }
+          if (moduleStr == "ce155") {
+            if (item["bank-content"]) {
+              return failAt(item, "'bank-content' is only valid with 'module: ce168n'");
+            }
+            out->ce155Enabled = true;
             continue;
           }
           YAML::Node banksNode = item["banks"];

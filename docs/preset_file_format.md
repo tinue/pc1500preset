@@ -79,10 +79,17 @@ program:
   or `0x4800` (the emulator's two extension-RAM windows). `size` is a byte
   count, optionally suffixed `k`/`K` for KiB (`16k` = 16384), and applies
   via the FIFO `setextram` command. `module` is only valid at `0x0000`,
-  and accepts `ce163`, `ce128k`, or `ce168n`:
+  and accepts `ce163`, `ce155`, `ce128k`, or `ce168n`:
   - `ce163` -- the CE-163 memory module (128K of RAM, banked into the
     `0000H`-`3FFFH` window; see `../pc1500emu/README.md` for how bank
     selection works), applied via the FIFO `setce163 1` command.
+  - `ce155` -- the real 1982-era CE-155 module: 8K split across both
+    windows (2K isolated at `3800H`-`3FFFH`, plus 6K filling the entire
+    expansion window -- `4800H`-`5FFFH` on a PC-1500, `5800H`-`5FFFH` on a
+    PC-1500A), applied via the FIFO `setce155 1` command; takes no
+    additional fields. Unlike `ce163`/`ce128k`/`ce168n`, its `0000H`
+    footprint is only that top 2K, not the whole window -- addresses below
+    `3800H` in that window are unmapped.
   - `ce128k` -- a synthetic, non-Sharp module that fills both
     extension-RAM windows to their own already-existing max size at once
     (16K at `0000H`-`3FFFH` plus the full expansion window, 10K on a
@@ -108,15 +115,20 @@ program:
       Only valid alongside `module: ce168n` -- rejected under `module:
       ce163` or a plain `size` entry.
 
-  `ce163`, `ce128k`, and `ce168n` all apply their FIFO command before
-  `reset`, since the ROM only detects installed extension RAM/CE-163/
-  CE-128K/CE-168N at reset/cold-start; `ce168n`'s `bank-content` entries
-  are applied after `reset` instead (see "Load pipeline" below), since
-  bank-select addresses only mean anything once the module is enabled and
-  sized.
+  `ce163`, `ce155`, `ce128k`, and `ce168n` all apply their FIFO command
+  before `reset`, since the ROM only detects installed extension RAM/
+  CE-163/CE-155/CE-128K/CE-168N at reset/cold-start; `ce168n`'s
+  `bank-content` entries are applied after `reset` instead (see "Load
+  pipeline" below), since bank-select addresses only mean anything once
+  the module is enabled and sized.
   `size` and `module` can't both be given in the same entry, and
-  `module: ce163`, `module: ce128k`, and `module: ce168n` are mutually
-  exclusive with each other and with a `size` entry at either window.
+  `module: ce163`, `module: ce155`, `module: ce128k`, and `module: ce168n`
+  are mutually exclusive with each other and with a `size` entry at either
+  window. Every `memory-expansion` field applied over the FIFO is sent
+  unconditionally as part of applying a preset, including an explicit
+  "off" for every option a given file doesn't mention -- pc1500emu is
+  driven headless here, so an omitted field must mean "no expansion," not
+  "leave whatever an earlier run configured."
 - **`rom-modules`** (optional): a list of CE-150/153/158-style plug-in ROM
   modules at `0x8000`-`0xBFFF`, each with `slot` (`1`-`4` or `auto`, for
   slot 1), `address` (hex load address), `require-pv`/`use-pu-bank`
@@ -304,9 +316,16 @@ than leaving a window open indefinitely.
    and `--no-state` (so it never resumes a `--conf`-configured session).
 3. Wait for its FIFO command interface to come up, then send
    `automation on`.
-4. Apply `memory-expansion` window sizes via `setextram`, or enable the
-   CE-163/CE-128K/CE-168N module via `setce163`/`setce128k`/`setce168n` for
-   a `module: ce163`/`module: ce128k`/`module: ce168n` entry.
+4. Clear every memory-expansion option (`setextram 0000 0`, `setextram ext
+   0`, `setce163 0`, `setce155 0`, `setce128k 0`, `setce168n 0 0`), then
+   apply `memory-expansion` window sizes via `setextram`, or enable the
+   CE-163/CE-155/CE-128K/CE-168N module via
+   `setce163`/`setce155`/`setce128k`/`setce168n` for a `module: ce163`/
+   `module: ce155`/`module: ce128k`/`module: ce168n` entry. The clearing
+   step runs regardless of what the preset specifies, so a file with no
+   `memory-expansion` section reliably boots with none, rather than
+   inheriting state from an earlier run against the same emulator process
+   or its persisted conf file.
 5. Load `rom-modules` attachments into their slots via `loadrommodule`.
 6. Send `reset`.
 7. If either script section or `bank-content` is non-empty, wait out the

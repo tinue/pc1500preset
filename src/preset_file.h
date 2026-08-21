@@ -84,6 +84,14 @@ struct PresetFile {
   // ce163Enabled, and ce168nBanks at the parser level, mirroring
   // Bus::setCe128kEnabled's own mutual exclusion on the emulator side.
   bool ce128kEnabled = false;
+  // Set by a memory-expansion entry with `module: ce155` instead of `size`
+  // (address must be 0x0000) -- a real 1982-era 8K module split across
+  // both windows (2K isolated at 3800H-3FFFH plus 6K filling the whole
+  // expansion window), applied via the FIFO `setce155 1` command. Mutually
+  // exclusive with extRam0000Bytes, ce163Enabled, ce128kEnabled, and
+  // ce168nBanks at the parser level, mirroring Bus::setCe155Enabled's own
+  // mutual exclusion on the emulator side.
+  bool ce155Enabled = false;
 
   std::vector<RomModuleAttachment> romModules;
 

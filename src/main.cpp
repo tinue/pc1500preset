@@ -402,14 +402,41 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
   // Bus::extRamExtBase()).
   sendCommand("setmachine " + std::string(preset.model == "PC-1500A" ? "1500a" : "1500"));
 
+  // Unconditionally clear every memory-expansion option first, regardless
+  // of what this preset actually specifies. pc1500emu is driven headless
+  // over its FIFO here, and a freshly-launched process can still inherit
+  // extension-RAM state from a persisted conf file (see its own
+  // AppConfig/findDefaultConfFile) or, if an old instance from a previous
+  // run is still holding the FIFO, from that stale process entirely.
+  // Applying only the fields a preset sets (the old behavior) left
+  // whatever was already active in place when a preset specifies no
+  // `memory-expansion` at all -- silently reusing the *previous* preset's
+  // module instead of the clean "no expansion" state the file actually
+  // describes. Each of these is safe to send even when the corresponding
+  // option was never enabled.
+  sendCommand("setextram 0000 0");
+  sendCommand("setextram ext 0");
+  sendCommand("setce163 0");
+  sendCommand("setce155 0");
+  sendCommand("setce128k 0");
+  sendCommand("setce168n 0 0");
+
   if (preset.extRam0000Bytes) {
     sendCommand("setextram 0000 " + std::to_string(*preset.extRam0000Bytes));
   }
   if (preset.extRam4800Bytes) {
-    sendCommand("setextram 4800 " + std::to_string(*preset.extRam4800Bytes));
+    // "4800" here is the preset format's own field name (the window's base
+    // address on a PC-1500), not the FIFO's -- the FIFO command spells
+    // this window "ext" regardless of model (see pc1500emu's own
+    // `setextram` handler), since its actual base shifts to 0x5800 on a
+    // PC-1500A (Bus::extRamExtBase()).
+    sendCommand("setextram ext " + std::to_string(*preset.extRam4800Bytes));
   }
   if (preset.ce163Enabled) {
     sendCommand("setce163 1");
+  }
+  if (preset.ce155Enabled) {
+    sendCommand("setce155 1");
   }
   if (preset.ce128kEnabled) {
     sendCommand("setce128k 1");
