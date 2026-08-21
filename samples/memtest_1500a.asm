@@ -1,11 +1,15 @@
 ; ============================================================
-; MEMTEST_1500A_SDAS.ASM -- 16K Memory Card Test for Sharp PC-1500A
+; MEMTEST_1500A_SDAS.ASM -- Full-RAM Memory Test for Sharp PC-1500A
 ; ============================================================
 ;
 ; Same source as memtest.asm, built for the PC-1500A variant instead (see
 ; "Build selection" below) -- ENTRY lives at 0x7C01, outside the module
-; window, so the whole 16K module can be tested without reserving any
-; BASIC program space first. See docs/preset_file_format.md and
+; window, so the loaded code never collides with the tested RAM and no
+; BASIC program space needs reserving first. Tests from the first free
+; byte up to the ROM's own end-of-RAM pointer (RAM_END_H below), so it
+; covers whatever's actually installed -- a bare 16K module, CE-128K's
+; full 28K combining both expansion windows with built-in RAM, etc. --
+; not just a fixed 16K module window. See docs/preset_file_format.md and
 ; samples/memtest.pc1500a for how this gets applied.
 ;
 ; sdaslh5801 port of memtest.asm (originally written for tasm -5801).
@@ -22,11 +26,11 @@
 ;     Assemble to BIN" command reads the load address straight back out
 ;     of this pair, no separate address prompt needed.
 ;
-; Tests the CE1638 or CE163F 16K memory module for faults by
-; writing four patterns to every byte in the testable window,
-; reading each byte back, and comparing.  At the first mismatch
-; the bad address and data values are saved in the result area
-; and the test stops.  On a clean pass ERR_FLAG is 0.
+; Tests installed RAM for faults by writing four patterns to every byte
+; from the first free byte up to the ROM-reported top of RAM, reading
+; each byte back, and comparing.  At the first mismatch the bad address
+; and data values are saved in the result area and the test stops.  On a
+; clean pass ERR_FLAG is 0.
 ;
 ; Test patterns (per full iteration, in order): 0x55, 0xAA, 0xFF, 0x00
 ;
@@ -41,7 +45,7 @@
 ;   Run:            X=10: CALL &C5,X
 ;   Protect:        NEW &200   (safe for both CE1638 and CE163F)
 ;
-; PC-1500A (full module coverage, code outside module window):
+; PC-1500A (tests all installed RAM, code outside the tested range):
 ;   ENTRY = 0x7C01
 ;   Before running: (no NEW needed -- machine-code area is not bank-switched)
 ;   Run:            X=10: CALL &7C01,X
@@ -86,9 +90,19 @@ ENTRY       .equ    0x7C01      ; PC-1500A -- full module coverage
 ; BASIC Bottom = first byte of testable user RAM (start of test range).
 ; Start = end of used BASIC area (0x7867/0x7868) = first free byte.
 ; This preserves any BASIC program in memory.
-; End of range is hardcoded: last byte tested is 0x3FFF (full module window).
 BOTTOM_H    .equ    0x7867      ; High byte of BASIC used-area end (= first free byte, 0x0112 with no program)
 BOTTOM_L    .equ    0x7868      ; Low byte  of BASIC used-area end
+
+; End of range: the ROM's own end-of-RAM pointer, one byte, set at every
+; reset by the ROM's page-by-page RAM scan. $7864 holds the high byte of
+; the first *invalid* page, i.e. Y=(this)*256 is exactly one past the last
+; valid byte -- confirmed empirically against a live CE-128K session: it
+; reads 0x70 there, matching MEM's 28474-byte readout for a
+; fully-populated PC-1500A (0x7000 - 0x00C5 - 1 = 28474). Reading this
+; instead of a hardcoded 0x4000 makes the test self-size to whatever RAM
+; is actually installed (a bare 16K module, CE-128K's full 28K, etc.)
+; rather than only ever covering the 0000H module window.
+RAM_END_H   .equ    0x7864      ; High byte of first invalid page (one past top of RAM)
 
 ; ============================================================
             .area   CODE (ABS)
@@ -139,8 +153,10 @@ COUNT_OK:
             sta     ul
             dec     ul
 
-; Load Y with the end sentinel (0x4000 = one past last module byte 0x3FFF).
-            ldi     yh,0x40
+; Load Y with the end sentinel: one past the last valid byte, read from
+; the ROM's own RAM_END_H pointer rather than hardcoded.
+            lda     (RAM_END_H)
+            sta     yh
             ldi     yl,0x00
 
 ; ============================================================
