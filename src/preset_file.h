@@ -76,21 +76,21 @@ struct PresetFile {
   std::optional<int> ce168nBanks;
   int ce168nFirstRoBank = 0;  // only meaningful if ce168nBanks is set
   std::vector<Ce168nBankContent> ce168nBankContent;
-  // Set by a memory-expansion entry with `module: ce128k` instead of `size`
-  // (address must be 0x0000) -- synthetic, non-Sharp module that fills both
-  // extension-RAM windows to their own already-existing max size at once
-  // (16K at 0000H plus the full expansion window), applied via the FIFO
-  // `setce128k 1` command. Mutually exclusive with extRam0000Bytes,
-  // ce163Enabled, and ce168nBanks at the parser level, mirroring
-  // Bus::setCe128kEnabled's own mutual exclusion on the emulator side.
-  bool ce128kEnabled = false;
+  // `module: cemax`/`module: cemaxa` (address must be 0x0000) are pure
+  // preset-loader sugar, not their own emulator module: they just set
+  // extRam0000Bytes to 16K and extRam4800Bytes to the expansion window's
+  // own max for the matching model (10240 on PC-1500, 6144 on PC-1500A) --
+  // confirmed empirically to be bit-for-bit identical to pc1500emu's own
+  // `setce128k` (Bus::setCe128kEnabled sets exactly these two existing
+  // knobs to their own maxima, nothing else -- see its own comment). No
+  // separate flag here; the two fields above are all that's needed.
   // Set by a memory-expansion entry with `module: ce155` instead of `size`
   // (address must be 0x0000) -- a real 1982-era 8K module split across
   // both windows (2K isolated at 3800H-3FFFH plus 6K filling the whole
   // expansion window), applied via the FIFO `setce155 1` command. Mutually
-  // exclusive with extRam0000Bytes, ce163Enabled, ce128kEnabled, and
-  // ce168nBanks at the parser level, mirroring Bus::setCe155Enabled's own
-  // mutual exclusion on the emulator side.
+  // exclusive with extRam0000Bytes, ce163Enabled, and ce168nBanks at the
+  // parser level, mirroring Bus::setCe155Enabled's own mutual exclusion on
+  // the emulator side.
   bool ce155Enabled = false;
 
   std::vector<RomModuleAttachment> romModules;

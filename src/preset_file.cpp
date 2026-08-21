@@ -138,8 +138,8 @@ bool parsePresetFile(const std::string& path, PresetFile* out, std::string* erro
         }
         if (moduleNode) {
           std::string moduleStr = moduleNode.as<std::string>();
-          if (moduleStr != "ce163" && moduleStr != "ce168n" && moduleStr != "ce128k" &&
-              moduleStr != "ce155") {
+          if (moduleStr != "ce163" && moduleStr != "ce168n" && moduleStr != "cemax" &&
+              moduleStr != "cemaxa" && moduleStr != "ce155") {
             return failAt(moduleNode, "unrecognized memory-expansion module '" + moduleStr + "'");
           }
           if (window != 0x0000) {
@@ -152,11 +152,32 @@ bool parsePresetFile(const std::string& path, PresetFile* out, std::string* erro
             out->ce163Enabled = true;
             continue;
           }
-          if (moduleStr == "ce128k") {
+          if (moduleStr == "cemax" || moduleStr == "cemaxa") {
             if (item["bank-content"]) {
               return failAt(item, "'bank-content' is only valid with 'module: ce168n'");
             }
-            out->ce128kEnabled = true;
+            // Both extension-RAM windows at their own max size, model-
+            // matched: 'cemax' is the PC-1500's 10K expansion window,
+            // 'cemaxa' the PC-1500A's 6K one (pc1500emu's own
+            // Bus::extRamExtWindowMaxSize() for each variant). Sending
+            // the wrong one's max on the other model would silently spill
+            // configured "RAM" past the real 6/10K window boundary into
+            // fixed system RAM at 0x7000+ (pc1500emu's setextram doesn't
+            // clamp), so this is checked here at parse time rather than
+            // left to fail confusingly (or not at all) on-device.
+            bool wantsA = (moduleStr == "cemaxa");
+            if (out->model.empty()) {
+              return failAt(item,
+                             "'module: " + moduleStr + "' requires the top-level 'model' field");
+            }
+            bool isA = (out->model == "PC-1500A");
+            if (wantsA != isA) {
+              return failAt(item, "'module: " + moduleStr + "' requires model: " +
+                                       (wantsA ? "PC-1500A" : "PC-1500") + " (this file has " +
+                                       out->model + ")");
+            }
+            out->extRam0000Bytes = 16384;
+            out->extRam4800Bytes = wantsA ? 6144 : 10240;
             continue;
           }
           if (moduleStr == "ce155") {

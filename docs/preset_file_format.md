@@ -42,7 +42,8 @@ memory-expansion:
   - address: 0x0000
     size: 16k
   # or, instead of 'size': module: ce163
-  # or, a synthetic max-RAM module filling both windows: module: ce128k
+  # or, both windows at their own max (model-specific): module: cemax
+  #   (module: cemaxa for a PC-1500A file)
   # or, a parametrized generalization of ce163:
   #   module: ce168n
   #   banks: 4
@@ -79,7 +80,7 @@ program:
   or `0x4800` (the emulator's two extension-RAM windows). `size` is a byte
   count, optionally suffixed `k`/`K` for KiB (`16k` = 16384), and applies
   via the FIFO `setextram` command. `module` is only valid at `0x0000`,
-  and accepts `ce163`, `ce155`, `ce128k`, or `ce168n`:
+  and accepts `ce163`, `ce155`, `cemax`/`cemaxa`, or `ce168n`:
   - `ce163` -- the CE-163 memory module (128K of RAM, banked into the
     `0000H`-`3FFFH` window; see `../pc1500emu/README.md` for how bank
     selection works), applied via the FIFO `setce163 1` command.
@@ -87,15 +88,28 @@ program:
     windows (2K isolated at `3800H`-`3FFFH`, plus 6K filling the entire
     expansion window -- `4800H`-`5FFFH` on a PC-1500, `5800H`-`5FFFH` on a
     PC-1500A), applied via the FIFO `setce155 1` command; takes no
-    additional fields. Unlike `ce163`/`ce128k`/`ce168n`, its `0000H`
+    additional fields. Unlike `ce163`/`cemax`/`ce168n`, its `0000H`
     footprint is only that top 2K, not the whole window -- addresses below
     `3800H` in that window are unmapped.
-  - `ce128k` -- a synthetic, non-Sharp module that fills both
-    extension-RAM windows to their own already-existing max size at once
-    (16K at `0000H`-`3FFFH` plus the full expansion window, 10K on a
-    PC-1500 or 6K on a PC-1500A) -- see `../pc1500emu/README.md`'s
-    "Settings > Extension RAM (0000H)" section. Applied via the FIFO
-    `setce128k 1` command; takes no additional fields.
+  - `cemax` (PC-1500 files) / `cemaxa` (PC-1500A files) -- both
+    extension-RAM windows at their own already-existing max size at once:
+    16K at `0000H`-`3FFFH` plus the full expansion window, 10K on a
+    PC-1500 (`cemax`) or 6K on a PC-1500A (`cemaxa`). Not a real Sharp
+    module, and not its own emulator feature either -- this is pure
+    preset-loader sugar for a `size: 16384` entry at `0x0000` plus a
+    `size: 10240`/`size: 6144` entry at `0x4800`, confirmed empirically
+    bit-for-bit identical (same `BASPRG_END`/end-of-RAM pointers, same
+    `MEM` reading, same writable footprint) to `pc1500emu`'s own
+    `setce128k` FIFO command, which does exactly that same thing
+    internally (`Bus::setCe128kEnabled` just sets those two existing
+    knobs to their own maxima -- no separate memory-mapping logic exists
+    on the emulator side). Sending neither `setextram`/module command --
+    this expands to plain `setextram` calls, same as a `size:` entry.
+    Picking the wrong one for the file's `model` is a parse-time error
+    (`cemax` on a PC-1500A, or vice versa, would otherwise configure an
+    expansion-window size larger than that model's real window, spilling
+    past `0x7000` into fixed system RAM -- `pc1500emu`'s `setextram`
+    doesn't clamp this itself).
   - `ce168n` -- a parametrized generalization of CE-163: same
     `0000H`-`3FFFH` window and fixed 16K bank size, but with the bank
     count and a first-read-only-bank boundary as parameters, applied via
@@ -115,16 +129,20 @@ program:
       Only valid alongside `module: ce168n` -- rejected under `module:
       ce163` or a plain `size` entry.
 
-  `ce163`, `ce155`, `ce128k`, and `ce168n` all apply their FIFO command
-  before `reset`, since the ROM only detects installed extension RAM/
-  CE-163/CE-155/CE-128K/CE-168N at reset/cold-start; `ce168n`'s
-  `bank-content` entries are applied after `reset` instead (see "Load
-  pipeline" below), since bank-select addresses only mean anything once
-  the module is enabled and sized.
+  `ce163`, `ce155`, and `ce168n` (and `cemax`/`cemaxa`, via the plain
+  `setextram` calls they expand to) all apply before `reset`, since the
+  ROM only detects installed extension RAM/CE-163/CE-155/CE-168N at
+  reset/cold-start; `ce168n`'s `bank-content` entries are applied after
+  `reset` instead (see "Load pipeline" below), since bank-select addresses
+  only mean anything once the module is enabled and sized.
   `size` and `module` can't both be given in the same entry, and
-  `module: ce163`, `module: ce155`, `module: ce128k`, and `module: ce168n`
-  are mutually exclusive with each other and with a `size` entry at either
-  window. Every `memory-expansion` field applied over the FIFO is sent
+  `module: ce163`, `module: ce155`, `module: cemax`/`cemaxa`, and
+  `module: ce168n` are mutually exclusive with each other and with a
+  `size` entry at either window (since `cemax`/`cemaxa` set both
+  `size`-equivalent fields directly, giving both a `module: ce163` entry
+  and a `module: cemax` entry in the same file is rejected the same way
+  two conflicting `size` entries at the same window would be). Every
+  `memory-expansion` field applied over the FIFO is sent
   unconditionally as part of applying a preset, including an explicit
   "off" for every option a given file doesn't mention -- pc1500emu is
   driven headless here, so an omitted field must mean "no expansion," not
@@ -317,12 +335,12 @@ than leaving a window open indefinitely.
 3. Wait for its FIFO command interface to come up, then send
    `automation on`.
 4. Clear every memory-expansion option (`setextram 0000 0`, `setextram ext
-   0`, `setce163 0`, `setce155 0`, `setce128k 0`, `setce168n 0 0`), then
-   apply `memory-expansion` window sizes via `setextram`, or enable the
-   CE-163/CE-155/CE-128K/CE-168N module via
-   `setce163`/`setce155`/`setce128k`/`setce168n` for a `module: ce163`/
-   `module: ce155`/`module: ce128k`/`module: ce168n` entry. The clearing
-   step runs regardless of what the preset specifies, so a file with no
+   0`, `setce163 0`, `setce155 0`, `setce168n 0 0`), then apply
+   `memory-expansion` window sizes via `setextram` (`module:
+   cemax`/`cemaxa` included -- see above), or enable the CE-163/CE-155/
+   CE-168N module via `setce163`/`setce155`/`setce168n` for a `module:
+   ce163`/`module: ce155`/`module: ce168n` entry. The clearing step runs
+   regardless of what the preset specifies, so a file with no
    `memory-expansion` section reliably boots with none, rather than
    inheriting state from an earlier run against the same emulator process
    or its persisted conf file.

@@ -418,7 +418,6 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
   sendCommand("setextram ext 0");
   sendCommand("setce163 0");
   sendCommand("setce155 0");
-  sendCommand("setce128k 0");
   sendCommand("setce168n 0 0");
 
   if (preset.extRam0000Bytes) {
@@ -437,9 +436,6 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
   }
   if (preset.ce155Enabled) {
     sendCommand("setce155 1");
-  }
-  if (preset.ce128kEnabled) {
-    sendCommand("setce128k 1");
   }
   if (preset.ce168nBanks) {
     sendCommand("setce168n " + std::to_string(*preset.ce168nBanks) + " " +

@@ -1,14 +1,17 @@
-# PC-1500A, 16K RAM expansion at 0x0000. memtest_1500a.bin is built with
-# ENTRY=0x7C01 (see samples/memtest_1500a.asm's "Build variants" section),
-# outside the module window, so it can't collide with a BASIC program and
-# the whole 16K module can be tested. NEW0 still clears the input buffer
-# and memory layout before loading. CALL&7C01 starts it.
+# PC-1500A with module: cemaxa (both extension-RAM windows at their own
+# max size, 28K total -- see docs/preset_file_format.md). memtest_1500a.bin
+# is built with ENTRY=0x7C01 (see samples/memtest_1500a.asm's "Build
+# variants" section), outside the tested range, so it can't collide with
+# a BASIC program. The test itself reads the ROM's own end-of-RAM pointer
+# rather than assuming a fixed size, so it covers however much RAM is
+# actually installed. NEW0 still clears the input buffer and memory
+# layout before loading. CALL&7C01 starts it.
 model: PC-1500A
 firmware: ../roms/PC-1500_A04.ROM
 
 memory-expansion:
   - address: 0x0000
-    module: ce128k
+    module: cemaxa
 
 pre-load-keys:
   - key: cl
