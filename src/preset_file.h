@@ -76,6 +76,14 @@ struct PresetFile {
   std::optional<int> ce168nBanks;
   int ce168nFirstRoBank = 0;  // only meaningful if ce168nBanks is set
   std::vector<Ce168nBankContent> ce168nBankContent;
+  // Set by a memory-expansion entry with `module: ce128k` instead of `size`
+  // (address must be 0x0000) -- synthetic, non-Sharp module that fills both
+  // extension-RAM windows to their own already-existing max size at once
+  // (16K at 0000H plus the full expansion window), applied via the FIFO
+  // `setce128k 1` command. Mutually exclusive with extRam0000Bytes,
+  // ce163Enabled, and ce168nBanks at the parser level, mirroring
+  // Bus::setCe128kEnabled's own mutual exclusion on the emulator side.
+  bool ce128kEnabled = false;
 
   std::vector<RomModuleAttachment> romModules;
 

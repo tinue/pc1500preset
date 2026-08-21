@@ -411,6 +411,9 @@ void applyPreset(const PresetFile& preset, RunResult* result) {
   if (preset.ce163Enabled) {
     sendCommand("setce163 1");
   }
+  if (preset.ce128kEnabled) {
+    sendCommand("setce128k 1");
+  }
   if (preset.ce168nBanks) {
     sendCommand("setce168n " + std::to_string(*preset.ce168nBanks) + " " +
                 std::to_string(preset.ce168nFirstRoBank));

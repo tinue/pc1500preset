@@ -42,6 +42,7 @@ memory-expansion:
   - address: 0x0000
     size: 16k
   # or, instead of 'size': module: ce163
+  # or, a synthetic max-RAM module filling both windows: module: ce128k
   # or, a parametrized generalization of ce163:
   #   module: ce168n
   #   banks: 4
@@ -78,10 +79,16 @@ program:
   or `0x4800` (the emulator's two extension-RAM windows). `size` is a byte
   count, optionally suffixed `k`/`K` for KiB (`16k` = 16384), and applies
   via the FIFO `setextram` command. `module` is only valid at `0x0000`,
-  and accepts `ce163` or `ce168n`:
+  and accepts `ce163`, `ce128k`, or `ce168n`:
   - `ce163` -- the CE-163 memory module (128K of RAM, banked into the
     `0000H`-`3FFFH` window; see `../pc1500emu/README.md` for how bank
     selection works), applied via the FIFO `setce163 1` command.
+  - `ce128k` -- a synthetic, non-Sharp module that fills both
+    extension-RAM windows to their own already-existing max size at once
+    (16K at `0000H`-`3FFFH` plus the full expansion window, 10K on a
+    PC-1500 or 6K on a PC-1500A) -- see `../pc1500emu/README.md`'s
+    "Settings > Extension RAM (0000H)" section. Applied via the FIFO
+    `setce128k 1` command; takes no additional fields.
   - `ce168n` -- a parametrized generalization of CE-163: same
     `0000H`-`3FFFH` window and fixed 16K bank size, but with the bank
     count and a first-read-only-bank boundary as parameters, applied via
@@ -101,14 +108,15 @@ program:
       Only valid alongside `module: ce168n` -- rejected under `module:
       ce163` or a plain `size` entry.
 
-  Both `ce163` and `ce168n` command families run before `reset`, since the
-  ROM only detects installed extension RAM/CE-163/CE-168N at
-  reset/cold-start; `bank-content` entries are applied after `reset`
-  instead (see "Load pipeline" below), since bank-select addresses only
-  mean anything once the module is enabled and sized.
+  `ce163`, `ce128k`, and `ce168n` all apply their FIFO command before
+  `reset`, since the ROM only detects installed extension RAM/CE-163/
+  CE-128K/CE-168N at reset/cold-start; `ce168n`'s `bank-content` entries
+  are applied after `reset` instead (see "Load pipeline" below), since
+  bank-select addresses only mean anything once the module is enabled and
+  sized.
   `size` and `module` can't both be given in the same entry, and
-  `module: ce163` and `module: ce168n` are mutually exclusive with each
-  other and with a `size` entry at either window.
+  `module: ce163`, `module: ce128k`, and `module: ce168n` are mutually
+  exclusive with each other and with a `size` entry at either window.
 - **`rom-modules`** (optional): a list of CE-150/153/158-style plug-in ROM
   modules at `0x8000`-`0xBFFF`, each with `slot` (`1`-`4` or `auto`, for
   slot 1), `address` (hex load address), `require-pv`/`use-pu-bank`
@@ -297,8 +305,8 @@ than leaving a window open indefinitely.
 3. Wait for its FIFO command interface to come up, then send
    `automation on`.
 4. Apply `memory-expansion` window sizes via `setextram`, or enable the
-   CE-163/CE-168N module via `setce163`/`setce168n` for a `module: ce163`/
-   `module: ce168n` entry.
+   CE-163/CE-128K/CE-168N module via `setce163`/`setce128k`/`setce168n` for
+   a `module: ce163`/`module: ce128k`/`module: ce168n` entry.
 5. Load `rom-modules` attachments into their slots via `loadrommodule`.
 6. Send `reset`.
 7. If either script section or `bank-content` is non-empty, wait out the
